@@ -1,0 +1,159 @@
+https://www.tech-recipes.com/rx/57995/find-objects-creation-modification-dates-sql-server/
+https://www.tech-recipes.com/rx/category/database/sql-server-database/
+
+-- Get All Procedures
+select name,
+       create_date,
+       modify_date
+from sys.procedures
+where  name = 'ProductSite'--
+order by modify_date desc;
+
+-- Get All Tables
+select name,
+       create_date,
+       modify_date
+from sys.tables
+where  name = 'ProductSite'
+order by modify_date desc;
+
+-- Create Model Class From Sql Query
+ Declare   @TableName SYSNAME ='DONOTDELETE_JOB_DETAILS',  
+     @CLASSNAME VARCHAR(500)   ='public class '
+ 
+ 
+BEGIN  
+    DECLARE @Result VARCHAR(MAX)  
+  
+    SET @Result = @CLASSNAME + @TableName + '  
+{'  
+  
+SELECT @Result = @Result + '  
+    public ' + ColumnType + NullableSign + ' ' + ColumnName + ' { get; set; }'  
+FROM  
+(  
+    SELECT   
+        REPLACE(col.NAME, ' ', '_') ColumnName,  
+        column_id ColumnId,  
+        CASE typ.NAME   
+            WHEN 'bigint' THEN 'long'  
+            WHEN 'binary' THEN 'byte[]'  
+            WHEN 'bit' THEN 'bool'  
+            WHEN 'char' THEN 'string'  
+            WHEN 'date' THEN 'DateTime'  
+            WHEN 'datetime' THEN 'DateTime'  
+            WHEN 'datetime2' then 'DateTime'  
+            WHEN 'datetimeoffset' THEN 'DateTimeOffset'  
+            WHEN 'decimal' THEN 'decimal'  
+            WHEN 'float' THEN 'float'  
+            WHEN 'image' THEN 'byte[]'  
+            WHEN 'int' THEN 'int'  
+            WHEN 'money' THEN 'decimal'  
+            WHEN 'nchar' THEN 'char'  
+            WHEN 'ntext' THEN 'string'  
+            WHEN 'numeric' THEN 'decimal'  
+            WHEN 'nvarchar' THEN 'string'  
+            WHEN 'real' THEN 'double'  
+            WHEN 'smalldatetime' THEN 'DateTime'  
+            WHEN 'smallint' THEN 'short'  
+            WHEN 'smallmoney' THEN 'decimal'  
+            WHEN 'text' THEN 'string'  
+            WHEN 'time' THEN 'TimeSpan'  
+            WHEN 'timestamp' THEN 'DateTime'  
+            WHEN 'tinyint' THEN 'byte'  
+            WHEN 'uniqueidentifier' THEN 'Guid'  
+            WHEN 'varbinary' THEN 'byte[]'  
+            WHEN 'varchar' THEN 'string'  
+            ELSE 'UNKNOWN_' + typ.NAME  
+        END ColumnType,  
+        CASE   
+            WHEN col.is_nullable = 1 and typ.NAME in ('bigint', 'bit', 'date', 'datetime', 'datetime2', 'datetimeoffset', 'decimal', 'float', 'int', 'money', 'numeric', 'real', 'smalldatetime', 'smallint', 'smallmoney', 'time', 'tinyint', 'uniqueidentifier')   
+            THEN '?'   
+            ELSE ''   
+        END NullableSign  
+    FROM SYS.COLUMNS col join sys.types typ on col.system_type_id = typ.system_type_id AND col.user_type_id = typ.user_type_id  
+    where object_id = object_id(@TableName)  
+) t  
+ORDER BY ColumnId  
+SET @Result = @Result  + '  
+}'  
+  
+print @Result  
+  
+END
+----Type 2--
+declare @tableName varchar(200)
+declare @columnName varchar(200)
+declare @nullable varchar(50)
+declare @datatype varchar(50)
+declare @maxlen int
+declare @pos int
+
+declare @Stype varchar(50)
+declare @sProperty varchar(200)
+
+DECLARE table_cursor CURSOR FOR
+SELECT TABLE_NAME
+FROM [INFORMATION_SCHEMA].[TABLES]
+WHERE TABLE_NAME = 'WorkOrderCategory'
+
+OPEN table_cursor
+
+FETCH NEXT FROM table_cursor
+INTO @tableName
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+
+PRINT 'public class ' + @tableName + ' {'
+
+DECLARE column_cursor CURSOR FOR 
+SELECT COLUMN_NAME, IS_NULLABLE, DATA_TYPE, isnull(CHARACTER_MAXIMUM_LENGTH,'-1'), ORDINAL_POSITION 
+from [INFORMATION_SCHEMA].[COLUMNS] 
+WHERE [TABLE_NAME] = @tableName
+order by [ORDINAL_POSITION]
+
+OPEN column_cursor
+FETCH NEXT FROM column_cursor INTO @columnName, @nullable, @datatype, @maxlen, @pos
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+
+-- datatype
+select @sType = case @datatype
+when 'int' then 'int'
+when 'decimal' then 'Decimal'
+when 'money' then 'Decimal'
+when 'char' then 'string'
+when 'nchar' then 'string'
+when 'smallint' then 'short'
+when 'varchar' then 'string'
+when 'nvarchar' then 'string'
+when 'uniqueidentifier' then 'Guid'
+when 'datetime' then 'DateTime'
+when 'bit' then 'bool'
+else 'string'
+END
+
+	If (@pos = 1)
+		PRINT '	[Key]'
+	If (@nullable = 'NO')
+		PRINT '	[Required]'
+	if (@sType = 'string' and @maxLen <> '-1')
+		Print '	[MaxLength(' +  convert(varchar(4),@maxLen) + ')]'
+	SELECT @sProperty = '	public ' + @sType + ' ' + @columnName + ' { get; set; }'
+	PRINT @sProperty
+
+	--print ''
+	FETCH NEXT FROM column_cursor INTO @columnName, @nullable, @datatype, @maxlen, @pos
+END
+CLOSE column_cursor
+DEALLOCATE column_cursor
+
+print '}'
+print ''
+FETCH NEXT FROM table_cursor 
+INTO @tableName
+END
+CLOSE table_cursor
+DEALLOCATE table_cursor
